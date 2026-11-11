@@ -17,6 +17,10 @@ data class FranchiseEntity(
     /** JSON list of SeasonInfo, in season order. */
     val seasonsJson: String,
     val fetchedAt: Long,
+    /** AniList format of the first entry (TV, MOVIE, OVA...). Null for rows cached before v2. */
+    val format: String? = null,
+    /** JSON list of RelatedInfo. Null for rows cached before v2 (forces a refresh). */
+    val relatedJson: String? = null,
 )
 
 /** What the user has watched, per season. Episodes 1..watched are checked off. */

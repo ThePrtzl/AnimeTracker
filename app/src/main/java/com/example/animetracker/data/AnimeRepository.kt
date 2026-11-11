@@ -9,6 +9,9 @@ import com.example.animetracker.data.remote.MediaDto
 import com.example.animetracker.data.remote.cleanDescription
 import com.example.animetracker.data.remote.isAiring
 import com.example.animetracker.data.remote.isFranchiseRoot
+import com.example.animetracker.data.remote.isSeasonLike
+import com.example.animetracker.domain.RelatedItem
+import com.example.animetracker.domain.formatLabel
 import com.example.animetracker.data.remote.toArgbOrNull
 import com.example.animetracker.data.remote.totalEpisodes
 import com.example.animetracker.domain.Franchise
@@ -48,6 +51,17 @@ data class SeasonInfo(
     val airing: Boolean,
 )
 
+/** Related anime stored inside FranchiseEntity.relatedJson. */
+@Serializable
+data class RelatedInfo(
+    val id: Int,
+    val title: String,
+    val format: String? = null,
+    val year: Int? = null,
+    val coverUrl: String? = null,
+    val coverColor: Long? = null,
+)
+
 class AnimeRepository(
     private val api: AniListApi,
     private val db: AppDatabase,
@@ -62,16 +76,18 @@ class AnimeRepository(
      * When browsing (no search text), sequels are filtered out so each anime appears once;
      * when searching, every match is shown and tapping a later season opens the whole anime.
      */
-    suspend fun browse(startPage: Int, search: String?, genre: String?): BrowseResult {
+    suspend fun browse(startPage: Int, search: String?, genre: String?, format: String? = null): BrowseResult {
         val searching = !search.isNullOrBlank()
+        val formats = if (format == null) ALL_FORMATS else listOf(format)
         val items = mutableListOf<BrowseItem>()
         var page = startPage
         var hasNext = true
         var calls = 0
         while (hasNext && items.size < MIN_TILES && calls < MAX_PAGES_PER_LOAD) {
-            val result = api.browse(page, PAGE_SIZE, search, genre)
+            val result = api.browse(page, PAGE_SIZE, search, genre, formats)
             items += result.media
-                .filter { searching || it.isFranchiseRoot() }
+                // Movies, OVAs, specials etc. always get their own tile; only later seasons are hidden.
+                .filter { searching || !it.isSeasonLike() || it.isFranchiseRoot() }
                 .map { it.toBrowseItem() }
             hasNext = result.pageInfo.hasNextPage
             page++
@@ -87,8 +103,19 @@ class AnimeRepository(
             title = title.display,
             coverUrl = coverImage?.extraLarge,
             coverColor = coverImage?.color.toArgbOrNull(),
-            meta = if (total > 0) "$total eps" else "Airing",
+            meta = browseMeta(format, total),
         )
+    }
+
+    private fun browseMeta(format: String?, total: Int): String {
+        val kind = if (format == "TV" || format == "ONA") null else formatLabel(format)
+        val eps = when {
+            total <= 0 -> if (kind == null) "Airing" else null
+            kind != null && total == 1 -> null
+            total == 1 -> "1 ep"
+            else -> "$total eps"
+        }
+        return listOfNotNull(kind, eps).joinToString(" · ").ifBlank { "Anime" }
     }
 
     // ---- franchise (an anime and its seasons) -----------------------------------------
@@ -131,10 +158,29 @@ class AnimeRepository(
             genres = root.genres.joinToString("|"),
             seasonsJson = json.encodeToString(seasons),
             fetchedAt = System.currentTimeMillis(),
+            format = root.format,
+            relatedJson = json.encodeToString(
+                collectRelated(chain).map {
+                    RelatedInfo(
+                        id = it.id,
+                        title = it.title.display,
+                        format = it.format,
+                        year = it.startDate?.year,
+                        coverUrl = it.coverImage?.large ?: it.coverImage?.extraLarge,
+                        coverColor = it.coverImage?.color.toArgbOrNull(),
+                    )
+                },
+            ),
         )
     }
 
+    private fun parseRelated(raw: String?): List<RelatedItem> =
+        raw?.let { runCatching { json.decodeFromString<List<RelatedInfo>>(it) }.getOrNull() }
+            .orEmpty()
+            .map { RelatedItem(it.id, it.title, it.format, it.year, it.coverUrl, it.coverColor) }
+
     private fun FranchiseEntity.isStale(): Boolean {
+        if (relatedJson == null) return true // cached before "Related to" existed
         val age = System.currentTimeMillis() - fetchedAt
         val anyAiring = parseSeasons(seasonsJson).any { it.airing }
         return age > (if (anyAiring) ONE_DAY_MS else SEVEN_DAYS_MS)
@@ -189,6 +235,8 @@ class AnimeRepository(
             genres = genres.split("|").filter { it.isNotBlank() },
             seasons = seasons,
             lastActivity = progress.maxOfOrNull { it.updatedAt } ?: 0L,
+            format = format,
+            related = parseRelated(relatedJson),
         )
     }
 
@@ -228,6 +276,7 @@ class AnimeRepository(
     }
 
     private companion object {
+        val ALL_FORMATS = listOf("TV", "TV_SHORT", "MOVIE", "OVA", "SPECIAL", "ONA")
         const val PAGE_SIZE = 50
         const val MIN_TILES = 18
         const val MAX_PAGES_PER_LOAD = 3

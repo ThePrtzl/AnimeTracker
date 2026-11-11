@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,7 +58,9 @@ import com.example.animetracker.domain.Franchise
 import com.example.animetracker.domain.Season
 import com.example.animetracker.domain.SeasonStatus
 import com.example.animetracker.ui.components.CircleIconButton
+import com.example.animetracker.domain.episodeText
 import com.example.animetracker.ui.components.MessageState
+import com.example.animetracker.ui.components.PosterTile
 import com.example.animetracker.ui.components.Poster
 import com.example.animetracker.ui.components.ProgressRing
 import com.example.animetracker.ui.components.TagPill
@@ -67,7 +72,7 @@ private val PosterHeight = 340.dp
 private val SheetOverlap = 280.dp
 
 @Composable
-fun DetailScreen(id: Int, onBack: () -> Unit) {
+fun DetailScreen(id: Int, onBack: () -> Unit, onOpen: (Int) -> Unit) {
     val app = LocalContext.current.applicationContext as AnimeApp
     val vm: DetailViewModel = viewModel(
         key = "detail-$id",
@@ -88,6 +93,7 @@ fun DetailScreen(id: Int, onBack: () -> Unit) {
                     franchise = franchise,
                     onOpenSeason = { openSeasonId = it.id },
                     onMarkNext = vm::markNext,
+                    onOpenRelated = onOpen,
                 )
                 val season = franchise.seasons.firstOrNull { it.id == openSeasonId }
                 if (season != null) {
@@ -131,6 +137,7 @@ private fun DetailContent(
     franchise: Franchise,
     onOpenSeason: (Season) -> Unit,
     onMarkNext: (Season) -> Unit,
+    onOpenRelated: (Int) -> Unit,
 ) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -141,9 +148,15 @@ private fun DetailContent(
     }
     val seasonCount = franchise.seasons.size
     val episodeCount = franchise.totalEpisodes
-    val meta = buildString {
-        append(if (seasonCount == 1) "1 season" else "$seasonCount seasons")
-        if (episodeCount > 0) append(" · $episodeCount episodes")
+    val kind = franchise.kindLabel
+    val single = kind != null && seasonCount == 1
+    val meta = if (single) {
+        listOfNotNull(kind, episodeCount.takeIf { it > 0 }?.let { episodeText(it) }).joinToString(" · ")
+    } else {
+        buildString {
+            append(if (seasonCount == 1) "1 season" else "$seasonCount seasons")
+            if (episodeCount > 0) append(" · ${episodeText(episodeCount)}")
+        }
     }
     val sheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
 
@@ -245,11 +258,45 @@ private fun DetailContent(
                             rowSeasons.forEach { season ->
                                 SeasonCard(
                                     season = season,
+                                    label = if (single) kind!! else "Season ${season.number}",
                                     onClick = { onOpenSeason(season) },
                                     modifier = Modifier.weight(1f),
                                 )
                             }
                             repeat(3 - rowSeasons.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+
+                if (franchise.related.isNotEmpty()) {
+                    Text(
+                        "Related to",
+                        modifier = Modifier.padding(top = 24.dp),
+                        color = Ink.Text,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Movies, OVAs, specials and more",
+                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+                        color = Ink.TextMuted,
+                        fontSize = 12.sp,
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(end = 20.dp),
+                    ) {
+                        items(franchise.related, key = { it.id }) { item ->
+                            PosterTile(
+                                id = item.id,
+                                title = item.title,
+                                meta = item.meta,
+                                coverUrl = item.coverUrl,
+                                color = item.coverColor,
+                                status = null,
+                                onClick = { onOpenRelated(item.id) },
+                                modifier = Modifier.size(width = 112.dp, height = 156.dp),
+                            )
                         }
                     }
                 }
@@ -286,6 +333,7 @@ private fun DetailContent(
                 Text(
                     when {
                         target == null || episode == null -> "All caught up"
+                        single && episodeCount == 1 -> "Mark as watched"
                         seasonCount > 1 -> "Mark Season ${target.number}, Episode $episode watched"
                         else -> "Mark episode $episode watched"
                     },
@@ -299,7 +347,7 @@ private fun DetailContent(
 
 /** One season: progress ring, name and status. Tapping opens the episode sheet. */
 @Composable
-private fun SeasonCard(season: Season, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun SeasonCard(season: Season, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(20.dp)
     val status = season.status
     val total = season.totalEpisodes
@@ -322,7 +370,7 @@ private fun SeasonCard(season: Season, onClick: () -> Unit, modifier: Modifier =
                 fontWeight = FontWeight.Bold,
             )
         }
-        Text("Season ${season.number}", color = Ink.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = Ink.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier

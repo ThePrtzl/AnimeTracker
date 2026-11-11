@@ -84,7 +84,7 @@ fun AppRoot() {
                 arguments = listOf(navArgument("id") { type = NavType.IntType }),
             ) { entry ->
                 val id = entry.arguments?.getInt("id") ?: return@composable
-                DetailScreen(id = id, onBack = { nav.popBackStack() })
+                DetailScreen(id = id, onBack = { nav.popBackStack() }, onOpen = openDetail)
             }
         }
     }

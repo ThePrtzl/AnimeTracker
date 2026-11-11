@@ -6,6 +6,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -37,9 +39,17 @@ interface AnimeDao {
 
 @Database(
     entities = [FranchiseEntity::class, SeasonProgressEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): AnimeDao
+}
+
+/** v2: franchises remember their format and related anime. Watch progress is untouched. */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE franchise ADD COLUMN format TEXT")
+        db.execSQL("ALTER TABLE franchise ADD COLUMN relatedJson TEXT")
+    }
 }

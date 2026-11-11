@@ -18,6 +18,8 @@ import kotlinx.coroutines.launch
 data class BrowseUiState(
     val query: String = "",
     val genre: String? = null,
+    /** AniList format filter (MOVIE, OVA...); null = everything. */
+    val format: String? = null,
     val items: List<BrowseItem> = emptyList(),
     val loading: Boolean = false,
     val endReached: Boolean = false,
@@ -56,6 +58,11 @@ class BrowseViewModel(private val repository: AnimeRepository) : ViewModel() {
         reload()
     }
 
+    fun onFormatChange(format: String?) {
+        _ui.update { it.copy(format = format) }
+        reload()
+    }
+
     fun loadNext() {
         val state = _ui.value
         if (state.loading || state.endReached || state.error != null) return
@@ -80,7 +87,7 @@ class BrowseViewModel(private val repository: AnimeRepository) : ViewModel() {
             _ui.update { it.copy(loading = true, error = null) }
             try {
                 val state = _ui.value
-                val result = repository.browse(nextPage, state.query, state.genre)
+                val result = repository.browse(nextPage, state.query, state.genre, state.format)
                 nextPage = result.nextPage
                 _ui.update { current ->
                     current.copy(

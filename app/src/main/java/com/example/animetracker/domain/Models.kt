@@ -20,6 +20,35 @@ fun seasonStatus(watched: Int, total: Int, airing: Boolean, dropped: Boolean): S
     else -> SeasonStatus.Started
 }
 
+/** Human label for an AniList format, e.g. MOVIE -> "Movie". Null/unknown -> null. */
+fun formatLabel(format: String?): String? = when (format) {
+    "TV" -> "TV"
+    "TV_SHORT" -> "Short"
+    "MOVIE" -> "Movie"
+    "OVA" -> "OVA"
+    "SPECIAL" -> "Special"
+    "ONA" -> "ONA"
+    "MUSIC" -> "Music"
+    else -> null
+}
+
+/** "1 episode" / "12 episodes". */
+fun episodeText(n: Int): String = if (n == 1) "1 episode" else "$n episodes"
+
+/** An anime connected to this one (movie, OVA, special, one-shot, spin-off...). */
+data class RelatedItem(
+    val id: Int,
+    val title: String,
+    val format: String?,
+    val year: Int?,
+    val coverUrl: String?,
+    val coverColor: Long?,
+) {
+    /** e.g. "Movie · 2019". */
+    val meta: String
+        get() = listOfNotNull(formatLabel(format), year?.toString()).joinToString(" · ").ifBlank { "Anime" }
+}
+
 data class Season(
     val id: Int,
     /** 1-based position in the franchise. */
@@ -52,8 +81,18 @@ data class Franchise(
     val seasons: List<Season>,
     /** Epoch millis of the latest progress change; 0 if none. */
     val lastActivity: Long = 0L,
+    /** AniList format of the first entry (TV, MOVIE, OVA...). */
+    val format: String? = null,
+    /** Movies, OVAs, specials, one-shots etc. connected to this anime. */
+    val related: List<RelatedItem> = emptyList(),
 ) {
     val totalEpisodes: Int get() = seasons.sumOf { it.totalEpisodes }
+
+    /** True for movies, OVAs, specials and one-shots (a single standalone entry, not a series). */
+    val isStandalone: Boolean get() = format != null && format != "TV" && format != "ONA" || (seasons.size == 1 && totalEpisodes in 1..3)
+
+    /** "Movie", "OVA", ... for standalone entries; null for ordinary series. */
+    val kindLabel: String? get() = if (isStandalone) formatLabel(format) ?: "Special" else null
 
     /**
      * Library rules:
@@ -77,9 +116,9 @@ data class Franchise(
         if (seasons.size == 1) {
             val s = seasons.first()
             return when {
-                s.status == SeasonStatus.Completed -> "${s.totalEpisodes} eps"
+                s.status == SeasonStatus.Completed -> if (s.totalEpisodes == 1) "1 ep" else "${s.totalEpisodes} eps"
                 s.totalEpisodes > 0 -> "${s.watched}/${s.totalEpisodes} eps"
-                else -> "${s.watched} eps"
+                else -> if (s.watched == 1) "1 ep" else "${s.watched} eps"
             }
         }
         seasons.firstOrNull { it.status == SeasonStatus.Dropped }?.let { return "Dropped S${it.number}" }

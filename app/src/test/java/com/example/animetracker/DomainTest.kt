@@ -11,6 +11,9 @@ import com.example.animetracker.domain.Franchise
 import com.example.animetracker.domain.LibraryStatus
 import com.example.animetracker.domain.Season
 import com.example.animetracker.domain.SeasonStatus
+import com.example.animetracker.domain.RelatedItem
+import com.example.animetracker.domain.episodeText
+import com.example.animetracker.domain.formatLabel
 import com.example.animetracker.domain.seasonStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -125,5 +128,35 @@ class DomainTest {
         assertNull(null.toArgbOrNull())
         assertEquals("One\nTwo", cleanDescription("One<br>Two"))
         assertEquals("Fish & chips", cleanDescription("<i>Fish</i> &amp; chips"))
+    }
+
+    @Test
+    fun `format labels and episode text`() {
+        assertEquals("Movie", formatLabel("MOVIE"))
+        assertEquals("Special", formatLabel("SPECIAL"))
+        assertNull(formatLabel(null))
+        assertEquals("1 episode", episodeText(1))
+        assertEquals("12 episodes", episodeText(12))
+    }
+
+    @Test
+    fun `standalone entries get a kind label and series do not`() {
+        val movie = Franchise(1, "M", null, null, "", emptyList(), listOf(season(1, 1, 1, 0)), format = "MOVIE")
+        val series = Franchise(2, "S", null, null, "", emptyList(), listOf(season(2, 1, 12, 0)), format = "TV")
+        assertEquals("Movie", movie.kindLabel)
+        assertNull(series.kindLabel)
+    }
+
+    @Test
+    fun `single episode progress is not pluralised`() {
+        val f = Franchise(1, "M", null, null, "", emptyList(), listOf(season(1, 1, 1, 1)), format = "MOVIE")
+        assertEquals("1 ep", f.shortProgress())
+    }
+
+    @Test
+    fun `related item meta`() {
+        assertEquals("Movie · 2019", RelatedItem(1, "x", "MOVIE", 2019, null, null).meta)
+        assertEquals("OVA", RelatedItem(1, "x", "OVA", null, null, null).meta)
+        assertEquals("Anime", RelatedItem(1, "x", null, null, null, null).meta)
     }
 }

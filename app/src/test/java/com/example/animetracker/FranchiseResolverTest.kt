@@ -6,6 +6,7 @@ import com.example.animetracker.data.remote.MediaDto
 import com.example.animetracker.data.remote.RelatedMediaDto
 import com.example.animetracker.data.remote.RelationsDto
 import com.example.animetracker.data.remote.isFranchiseRoot
+import com.example.animetracker.data.collectRelated
 import com.example.animetracker.data.resolveSeasonChain
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -32,8 +33,8 @@ class FranchiseResolverTest {
 
     private fun edge(type: String, node: RelatedMediaDto) = EdgeDto(type, node)
 
-    private fun media(id: Int, vararg edges: EdgeDto) =
-        MediaDto(id = id, relations = RelationsDto(edges.toList()))
+    private fun media(id: Int, vararg edges: EdgeDto, format: String = "TV", episodes: Int? = 12) =
+        MediaDto(id = id, format = format, episodes = episodes, relations = RelationsDto(edges.toList()))
 
     /** Resolves [requested] against a fake AniList made of [entries]; also checks nothing is fetched twice. */
     private fun resolve(requested: Int, vararg entries: MediaDto): List<Int> {
@@ -99,5 +100,38 @@ class FranchiseResolverTest {
         assertFalse(media(10, edge("PREQUEL", rel(11, 2010, episodes = 4))).isFranchiseRoot())
         assertFalse(media(10, edge("PREQUEL", rel(11, 2010, episodes = null))).isFranchiseRoot())
         assertFalse(media(10, edge("PREQUEL", rel(11, 2010, episodes = 12))).isFranchiseRoot())
+    }
+
+    @Test
+    fun `a movie is its own entry and does not pull in the series`() {
+        val movie = media(50, edge("PARENT", rel(1, 2019)), format = "MOVIE", episodes = 1)
+        val series = media(1, edge("SIDE_STORY", rel(50, 2020, format = "MOVIE", episodes = 1)))
+        assertEquals(listOf(50), resolve(50, movie, series))
+    }
+
+    @Test
+    fun `a one-shot ONA is standalone`() {
+        val oneShot = media(60, edge("SEQUEL", rel(1, 2021)), format = "ONA", episodes = 1)
+        assertEquals(listOf(60), resolve(60, oneShot))
+    }
+
+    @Test
+    fun `related collects movies and specials without duplicates or chain members`() {
+        val s1 = media(
+            1,
+            edge("SEQUEL", rel(2, 2020)),
+            edge("SIDE_STORY", rel(70, 2021, format = "MOVIE", episodes = 1)),
+            edge("CHARACTER", rel(99, 2015)),
+            edge("ADAPTATION", RelatedMediaDto(id = 5, type = "MANGA", format = "MANGA")),
+        )
+        val s2 = media(
+            2,
+            edge("PREQUEL", rel(1, 2019)),
+            edge("SIDE_STORY", rel(70, 2021, format = "MOVIE", episodes = 1)),
+            edge("SIDE_STORY", rel(71, 2020, format = "SPECIAL", episodes = 1)),
+            edge("SIDE_STORY", rel(72, 2020, format = "OVA", episodes = 2, status = "CANCELLED")),
+        )
+        val related = collectRelated(listOf(s1, s2))
+        assertEquals(listOf(71, 70), related.map { it.id })
     }
 }

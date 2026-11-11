@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -54,6 +56,16 @@ import com.example.animetracker.ui.theme.Ink
 private val Genres = listOf(
     "Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery",
     "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural",
+)
+
+/** Label to show, AniList format to request. */
+private val Formats = listOf(
+    "TV" to "TV",
+    "Movies" to "MOVIE",
+    "OVA" to "OVA",
+    "Specials" to "SPECIAL",
+    "ONA" to "ONA",
+    "Shorts" to "TV_SHORT",
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -101,7 +113,7 @@ fun BrowseScreen(onOpen: (Int) -> Unit) {
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.8).sp,
             )
-            CircleIconButton(Icons.Rounded.Tune, "Filter by genre", onClick = { showFilters = true })
+            CircleIconButton(Icons.Rounded.Tune, "Filters", onClick = { showFilters = true })
         }
 
         SearchField(
@@ -113,9 +125,18 @@ fun BrowseScreen(onOpen: (Int) -> Unit) {
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp),
         )
 
-        if (ui.genre != null) {
-            Row(Modifier.padding(start = 16.dp, top = 12.dp)) {
-                ChipPill(label = "${ui.genre}  ✕", selected = true, onClick = { vm.onGenreChange(null) })
+        if (ui.genre != null || ui.format != null) {
+            Row(
+                Modifier.padding(start = 16.dp, top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ui.genre?.let { g ->
+                    ChipPill(label = "$g  ✕", selected = true, onClick = { vm.onGenreChange(null) })
+                }
+                ui.format?.let { f ->
+                    val label = Formats.firstOrNull { it.second == f }?.first ?: f
+                    ChipPill(label = "$label  ✕", selected = true, onClick = { vm.onFormatChange(null) })
+                }
             }
         }
 
@@ -132,7 +153,7 @@ fun BrowseScreen(onOpen: (Int) -> Unit) {
                     modifier = Modifier.align(Alignment.Center),
                 )
                 ui.items.isEmpty() -> MessageState(
-                    message = "No anime found. Try a different search or genre.",
+                    message = "No anime found. Try a different search or filter.",
                     modifier = Modifier.align(Alignment.Center),
                 )
                 else -> LazyVerticalGrid(
@@ -185,10 +206,42 @@ fun BrowseScreen(onOpen: (Int) -> Unit) {
         ) {
             Column(
                 Modifier
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 24.dp)
                     .navigationBarsPadding(),
             ) {
+                Text(
+                    "Type",
+                    color = Ink.Text,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 14.dp),
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 24.dp),
+                ) {
+                    ChipPill(
+                        label = "All",
+                        selected = ui.format == null,
+                        onClick = {
+                            vm.onFormatChange(null)
+                            showFilters = false
+                        },
+                    )
+                    Formats.forEach { (label, value) ->
+                        ChipPill(
+                            label = label,
+                            selected = ui.format == value,
+                            onClick = {
+                                vm.onFormatChange(value)
+                                showFilters = false
+                            },
+                        )
+                    }
+                }
                 Text(
                     "Genre",
                     color = Ink.Text,

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.animetracker.domain.Season
+import com.example.animetracker.domain.episodeText
 import com.example.animetracker.ui.components.CircleIconButton
 import com.example.animetracker.ui.components.ProgressRing
 import com.example.animetracker.ui.components.color
@@ -124,7 +125,7 @@ fun SeasonSheet(
                         Text(
                             buildString {
                                 append(status.label())
-                                if (total > 0) append(" · $total episodes")
+                                if (total > 0) append(" · ${episodeText(total)}")
                             },
                             color = status.color(),
                             fontSize = 13.sp,

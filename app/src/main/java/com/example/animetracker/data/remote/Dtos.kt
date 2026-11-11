@@ -49,7 +49,11 @@ data class TitleDto(val romaji: String? = null, val english: String? = null) {
 }
 
 @Serializable
-data class CoverDto(val extraLarge: String? = null, val color: String? = null)
+data class CoverDto(
+    val extraLarge: String? = null,
+    val large: String? = null,
+    val color: String? = null,
+)
 
 @Serializable
 data class DateDto(val year: Int? = null)
@@ -75,6 +79,7 @@ data class RelatedMediaDto(
     val status: String? = null,
     val startDate: DateDto? = null,
     val title: TitleDto = TitleDto(),
+    val coverImage: CoverDto? = null,
 )
 
 // ---- helpers -------------------------------------------------------------------------
@@ -88,6 +93,15 @@ private val SEASON_FORMATS = setOf("TV", "ONA")
  * An unknown episode count (still announcing) is allowed.
  */
 private const val MIN_SEASON_EPISODES = 4
+
+private fun isSeasonLike(format: String?, episodes: Int?): Boolean =
+    format in SEASON_FORMATS && (episodes ?: MIN_SEASON_EPISODES) >= MIN_SEASON_EPISODES
+
+/**
+ * True for an ordinary series (or one season of it). Movies, OVAs, specials and one-shots are
+ * "standalone": they are listed as their own anime and never merged into another anime's seasons.
+ */
+fun MediaDto.isSeasonLike(): Boolean = isSeasonLike(format, episodes)
 
 /** Episodes known so far. For a show that's still airing, that's the aired count. */
 fun MediaDto.totalEpisodes(): Int = episodes ?: nextAiringEpisode?.episode?.minus(1) ?: 0
@@ -107,8 +121,7 @@ fun MediaDto.relatedSeason(relationType: String, earliest: Boolean): RelatedMedi
         .asSequence()
         .filter { it.relationType == relationType }
         .mapNotNull { it.node }
-        .filter { it.type == "ANIME" && it.format in SEASON_FORMATS }
-        .filter { (it.episodes ?: MIN_SEASON_EPISODES) >= MIN_SEASON_EPISODES }
+        .filter { it.type == "ANIME" && isSeasonLike(it.format, it.episodes) }
         .filter { it.status != "NOT_YET_RELEASED" && it.status != "CANCELLED" }
         .sortedBy { it.startDate?.year ?: Int.MAX_VALUE }
         .toList()
