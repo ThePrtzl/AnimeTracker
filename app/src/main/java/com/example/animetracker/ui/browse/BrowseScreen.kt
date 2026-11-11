@@ -200,15 +200,23 @@ fun BrowseScreen(onOpen: (Int) -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ChipPill("All", selected = ui.genre == null) {
-                        vm.onGenreChange(null)
-                        showFilters = false
-                    }
-                    Genres.forEach { genre ->
-                        ChipPill(genre, selected = ui.genre == genre) {
-                            vm.onGenreChange(genre)
+                    ChipPill(
+                        label = "All",
+                        selected = ui.genre == null,
+                        onClick = {
+                            vm.onGenreChange(null)
                             showFilters = false
-                        }
+                        },
+                    )
+                    Genres.forEach { genre ->
+                        ChipPill(
+                            label = genre,
+                            selected = ui.genre == genre,
+                            onClick = {
+                                vm.onGenreChange(genre)
+                                showFilters = false
+                            },
+                        )
                     }
                 }
             }
