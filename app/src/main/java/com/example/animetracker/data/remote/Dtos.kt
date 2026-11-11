@@ -82,6 +82,13 @@ data class RelatedMediaDto(
 /** Formats that count as a "season" of a franchise. Movies, OVAs and specials are ignored. */
 private val SEASON_FORMATS = setOf("TV", "ONA")
 
+/**
+ * Entries with fewer episodes than this are treated as one-off specials, not seasons
+ * (e.g. the 1-episode "MONSTERS: 103 Mercies Dragon Damnation", which AniList lists as a prequel of One Piece).
+ * An unknown episode count (still announcing) is allowed.
+ */
+private const val MIN_SEASON_EPISODES = 4
+
 /** Episodes known so far. For a show that's still airing, that's the aired count. */
 fun MediaDto.totalEpisodes(): Int = episodes ?: nextAiringEpisode?.episode?.minus(1) ?: 0
 
@@ -101,6 +108,7 @@ fun MediaDto.relatedSeason(relationType: String, earliest: Boolean): RelatedMedi
         .filter { it.relationType == relationType }
         .mapNotNull { it.node }
         .filter { it.type == "ANIME" && it.format in SEASON_FORMATS }
+        .filter { (it.episodes ?: MIN_SEASON_EPISODES) >= MIN_SEASON_EPISODES }
         .filter { it.status != "NOT_YET_RELEASED" && it.status != "CANCELLED" }
         .sortedBy { it.startDate?.year ?: Int.MAX_VALUE }
         .toList()

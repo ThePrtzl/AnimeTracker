@@ -90,7 +90,7 @@ class AniListApi(private val client: OkHttpClient) {
                   episodes
                   status
                   nextAiringEpisode { episode }
-                  relations { edges { relationType node { id type format status startDate { year } } } }
+                  relations { edges { relationType node { id type format episodes status startDate { year } } } }
                 }
               }
             }

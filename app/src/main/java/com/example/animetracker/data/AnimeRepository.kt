@@ -9,7 +9,6 @@ import com.example.animetracker.data.remote.MediaDto
 import com.example.animetracker.data.remote.cleanDescription
 import com.example.animetracker.data.remote.isAiring
 import com.example.animetracker.data.remote.isFranchiseRoot
-import com.example.animetracker.data.remote.relatedSeason
 import com.example.animetracker.data.remote.toArgbOrNull
 import com.example.animetracker.data.remote.totalEpisodes
 import com.example.animetracker.domain.Franchise
@@ -110,31 +109,10 @@ class AnimeRepository(
         }
     }
 
-    /**
-     * AniList lists every season as its own entry linked by PREQUEL/SEQUEL relations.
-     * Walk back to the first season, then forward through the sequels.
-     */
+    /** Fetches the anime containing [mediaId] together with all of its seasons (see [resolveSeasonChain]). */
     private suspend fun resolveFranchise(mediaId: Int): FranchiseEntity {
-        val seen = mutableSetOf<Int>()
-        var root = api.media(mediaId)
-        seen += root.id
-
-        var hops = 0
-        while (hops++ < MAX_HOPS) {
-            val prev = root.relatedSeason("PREQUEL", earliest = false)?.takeIf { it.id !in seen } ?: break
-            seen += prev.id
-            root = api.media(prev.id)
-        }
-
-        val chain = mutableListOf(root)
-        var tail = root
-        hops = 0
-        while (hops++ < MAX_HOPS) {
-            val next = tail.relatedSeason("SEQUEL", earliest = true)?.takeIf { it.id !in seen } ?: break
-            seen += next.id
-            tail = api.media(next.id)
-            chain += tail
-        }
+        val chain = resolveSeasonChain(mediaId) { id -> api.media(id) }
+        val root = chain.first()
 
         val seasons = chain.map {
             SeasonInfo(
@@ -253,7 +231,6 @@ class AnimeRepository(
         const val PAGE_SIZE = 50
         const val MIN_TILES = 18
         const val MAX_PAGES_PER_LOAD = 3
-        const val MAX_HOPS = 12
         const val ONE_DAY_MS = 24L * 60 * 60 * 1000
         const val SEVEN_DAYS_MS = 7 * ONE_DAY_MS
     }
